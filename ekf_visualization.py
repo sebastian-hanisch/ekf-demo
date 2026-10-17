@@ -1,9 +1,27 @@
 """Plotly-Abbildungen. Alle Achsen sind gesperrt (fixedrange), damit Touch-Geräte beim Scrollen nicht am Diagramm hängen bleiben."""
 
+import math
 import numpy as np
 import plotly.graph_objects as go
 
 import ekf_constants as C
+
+
+def _ref_line(fig, value, text, position, axis, log=True, **line_kwargs):
+    """Referenzlinie mit Beschriftung auf einer logarithmischen Achse: die Linie liegt auf dem Datenwert, die Beschriftung braucht log10 des Werts
+    (add_hline und add_vline setzen beide auf denselben Wert, die Beschriftung sitzt dann falsch und dehnt die Achse); log=False für lineare Achsen."""
+    if log and not value > 0.0:
+        return
+    pos = math.log10(value) if log else value
+    top, left = "top" in position, "left" in position
+    if axis == "y":
+        fig.add_hline(y=value, **line_kwargs)
+        if text:
+            fig.add_annotation(xref="paper", yref="y", x=0 if left else 1, y=pos, text=text, showarrow=False, xanchor="left" if left else "right", yanchor="bottom" if top else "top")
+    else:
+        fig.add_vline(x=value, **line_kwargs)
+        if text:
+            fig.add_annotation(xref="x", yref="paper", x=pos, y=1 if top else 0, text=text, showarrow=False, xanchor="right" if left else "left", yanchor="top" if top else "bottom")
 
 
 def lock_axes(fig):
@@ -48,8 +66,8 @@ def build_nees_chart(a):
     fig = go.Figure()
     fig.add_trace(go.Scatter(x=t[C.N_BURN:], y=np.maximum(a.nees_ekf_t[C.N_BURN:], 1e-2), mode="lines", line=dict(color=C.COLOR_EKF, width=3), name="EKF"))
     fig.add_trace(go.Scatter(x=t[C.N_BURN:], y=np.maximum(a.nees_ukf_t[C.N_BURN:], 1e-2), mode="lines", line=dict(color=C.COLOR_UKF, width=2, dash="dash"), name="UKF"))
-    fig.add_hline(y=C.STATE_DIM, line=dict(color=C.COLOR_TRUTH, dash="dash"), annotation_text="Soll = 4", annotation_position="bottom right")
-    fig.add_hline(y=C.NEES_BOUND_95, line=dict(color=C.COLOR_BEACON, dash="dot"), annotation_text="95-%-Grenze", annotation_position="top right")
+    _ref_line(fig, C.STATE_DIM, "Soll = 4", "bottom right", "y", line=dict(color=C.COLOR_TRUTH, dash="dash"))
+    _ref_line(fig, C.NEES_BOUND_95, "95-%-Grenze", "top right", "y", line=dict(color=C.COLOR_BEACON, dash="dot"))
     fig.update_xaxes(title_text="Zeit (s)")
     fig.update_yaxes(title_text="NEES (logarithmisch)", type="log")
     return _base(fig, 300)
